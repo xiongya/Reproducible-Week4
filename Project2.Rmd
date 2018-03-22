@@ -1,0 +1,100 @@
+---
+title: "Week4-Project2"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Synopsis 
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+## Data Processing
+```{r, echo = TRUE}
+data <- read.csv("StormData.csv")
+head(data)
+names(data)
+```
+Let's pick the useful information columns.
+```{r, echo = TRUE}
+data.h <- data[, c(8,23:24)]
+data.p <- data[, c(8, 25:28)]
+```
+## Result
+### 1. Find the most harmful type of event with respect to population health.
+In this case, we discover from the number of fatalities and injuries.
+```{r, echo = TRUE}
+library(dplyr)
+data.h2 <- aggregate(cbind(FATALITIES,INJURIES) ~ EVTYPE, data = data.h, sum, na.rm = TRUE)
+rank.h <- arrange(data.h2, desc(FATALITIES+INJURIES))
+top10.h <- rank.h[1:10,]
+top10.h
+```
+The following is a graphical way to look at the most harmful weather event to human health.
+```{r, echo = TRUE}
+FAT_INJ <- as.matrix(t(top10.h[,-1]))
+colnames(FAT_INJ) <- top10.h$EVTYPE
+barplot(FAT_INJ, col=c("green","orange"), cex.names = 0.3, cex.axis = 0.3, main = "Harmful Weather to Human Health")
+legend("topright", c("FATALITIES", "INJURIES"), fill=c("green", "orange"), cex=0.8)
+```
+### 2. Find the type of event has the greates economic consequences.
+
+Let's start from converting different scale units to same scale.
+```{r, echo = TRUE}
+unique(data.p$PROPDMGEXP)
+unique(data.p$CROPDMGEXP)
+table(data.p$PROPDMGEXP)
+table(data.p$CROPDMGEXP)
+```
+Let's tune the data first, assign new factor levels and define the NA values in the following way.
+```{r, echo = TRUE}
+data.p$prop <- factor(data.p$PROPDMGEXP, levels=c("H", "K", "M", "B", "h", "m", "0"))
+data.p$prop[is.na(data.p$prop)] <- "0"
+table(data.p$prop) 
+# double check, so we get rid of other symbols and missing values
+
+data.p$crop <- factor(data.p$CROPDMGEXP, levels=c("K", "M", "B", "k", "m", "0"))
+data.p$crop[is.na(data.p$crop)] <- "0"
+table(data.p$crop)
+```
+Now let's assign numerical values to change unit symbols.
+```{r, echo = TRUE}
+data.p$PROP[data.p$prop == "K"] <- 1000
+data.p$PROP[data.p$prop == "H" | data.p$prop == "h"] <- 100
+data.p$PROP[data.p$prop == "M" | data.p$prop == "m"] <- 1000000
+data.p$PROP[data.p$prop == "B"] <- 1000000000
+data.p$PROP[data.p$prop == "0"] <- 1
+
+data.p$CROP[data.p$crop == "K" | data.p$crop == "k"] <- 100
+data.p$CROP[data.p$crop == "M" | data.p$crop == "m"] <- 1000000
+data.p$CROP[data.p$crop == "B"] <- 1000000000
+data.p$CROP[data.p$crop == "0"] <- 1
+```
+Create two new columns of values based on the standard units.
+```{r, echo = TRUE}
+data.p <- mutate(data.p, prop_value = PROPDMG*PROP/1000000, crop_value = CROPDMG*CROP/1000000)
+data.p2 <- aggregate(cbind(prop_value, crop_value) ~ EVTYPE, data = data.p, sum, na.rm = TRUE)
+data.p2 <- data.p2 %>% group_by(EVTYPE) %>% summarize(prop_value = sum(prop_value, na.rm = TRUE), crop_value = sum(crop_value, na.rm = TRUE))
+data.p2 <- arrange(data.p2, desc(prop_value+crop_value))
+top10.p <- data.p2[1:10,]
+top10.p
+```
+The following is a graphical way to look at the most harmful weather event to economic impact.
+```{r, echo = TRUE}
+PROP_CROP <- as.matrix(t(top10.p[,-1]))
+colnames(PROP_CROP) <- top10.p$EVTYPE
+barplot(PROP_CROP, col=c("green","orange"), cex.names = 0.3, cex.axis = 0.3, main = "Harmful Weather to Economic")
+legend("topright", c("Property", "Crop"), fill=c("green", "orange"), cex=0.8)
+```
+
+
+
+
+
+
+
+
+
+
+
